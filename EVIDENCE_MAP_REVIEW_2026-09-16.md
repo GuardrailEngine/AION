@@ -33,7 +33,7 @@
 | `AuditLog` | **Observed / Reproduced** | Temporary-path write, read, lookup, and missing-record behavior worked. | Filesystem tampering, durability, concurrency, and tamper resistance remain **Not tested / Out of Scope**. |
 | `MockTool` | **Observed / Reproduced** | Direct invocation sets `called`, stores payload, and returns a result. | This does not establish an execution boundary or non-invocation guarantee. |
 | `Pipeline` with Stub/Adversarial providers | **Observed / Reproduced** | End-to-end composition through intent, reasoning, critique, risk, constitution, agency, formatting, and audit was run for selected scenarios. | This is selected composition evidence, not a full regression environment. |
-| `ConfirmationChannel` (`aion/execution/channel.py`) | **Observed / Runtime-verified** | Bound to `action`, `tool`, `session`, `request_id`, `payload_hash`, and `target_version`; rejection reasons include `already_used`, `expired`, `request_id_mismatch`, `action_mismatch`, `tool_mismatch`, `session_mismatch`, `payload_mismatch`, and `target_drift`. Verified by 18 focused tests. | Channel is verified in isolation and through the boundary pipeline below; real external tools remain out of scope. |
+| `ConfirmationChannel` (`aion/execution/channel.py`) | **Observed / Runtime-verified** | Bound to `action`, `tool`, `session`, `request_id`, `payload_hash`, `target_version`, and optional `target_hash`; rejection reasons include `already_used`, `expired`, `request_id_mismatch`, `action_mismatch`, `tool_mismatch`, `session_mismatch`, `payload_mismatch`, `target_drift`, and `target_hash_mismatch`. Verified by 22 focused tests. | `target_version` alone does not detect ABA. Content-hash binding via `target_hash` closes this case. Channel is verified in isolation and through the boundary pipeline below; real external tools remain out of scope. |
 | `ExecutionBoundary` (`aion/execution/boundary.py`) | **Observed / Runtime-verified** | Re-verifies confirmation before dispatching to a tool; rejects `payload_mismatch`, `action_mismatch`, `unknown_tool`, and `already_used`; handles `tool_error:<ExceptionType>`. `ToolRegistry` `register`, `get`, and `has` are covered by the exercised path. Verified by 6 tests in `tests/test_execution_boundary.py`. | Boundary and Channel are verified in isolation and as a two-layer pipeline; real external tools and end-to-end regression remain out of scope for this package. |
 | `AgencyGateway` (`aion/agency/gateway.py`) | **Observed / Runtime-verified** | Bridges AgencyGate-style decisions to `ConfirmationChannel`; issues confirmation for ACTION without consuming it; rejects `missing_field:<key>`; verified by 6 tests in `tests/test_agency_gateway.py`, including gate → confirmation → boundary → local tool flow. | Gateway uses an injected evaluator and does not prove the concrete `AgencyGate`/`Pipeline` integration. Real external tools and broader regression remain out of scope. |
 | `real_gate_adapter` (`aion/agency/real_gate_adapter.py`) | **Observed / Runtime-verified** | The adapter imports and loads the available `aion_core (1).py` snapshot, refuses missing/`None` gate inputs, maps Core decisions to `(is_action, reason)`, and passes real Core objects through `AgencyGate.decide()`. Three adapter tests plus two end-to-end tests pass. | The concrete `AgencyGate` integration is verified for the deterministic ACTION fixture only; broader decision coverage remains **Not tested**. |
@@ -81,9 +81,12 @@ The focused ConfirmationChannel tests produced fresh runtime evidence:
 
 - `tests/test_confirmation_channel.py` — 15 passed
 - `tests/test_target_drift.py` — 3 passed
-- Total — **18/18 passed**, exit code `0`
+- `tests/test_target_aba.py` — 4 passed
+- Total — **22/22 passed**, exit code `0`
 
-The fresh tests cover scope binding across action, tool, session, request identity, payload hash, target version, expiry, and single-use state. They also cover canonical payload hashing, mutation before and after consumption, target drift, audit entries, and the `verify_and_consume()` path.
+The fresh tests cover scope binding across action, tool, session, request identity, payload hash, target version, expiry, and single-use state. They also cover canonical payload hashing, mutation before and after consumption, target drift, ABA detection via `target_hash`, audit entries, and the `verify_and_consume()` path.
+
+ABA detection via `target_hash` is **Observed / Runtime-verified** in `tests/test_target_aba.py`: four tests cover the documented version-only ABA gap, hash-bound rejection, unchanged-hash acceptance, and backward compatibility when no target hash is bound. `target_version` alone does not detect ABA; content-hash binding via `target_hash` closes this case.
 
 ### ExecutionBoundary
 
@@ -115,9 +118,9 @@ The adapter test file produced fresh runtime evidence:
 
 - `tests/test_real_gate_adapter.py` — 3 passed
 - `tests/test_real_gate_e2e.py` — 2 passed
-- Full available `tests/` suite after addition — **35/35 passed**, exit code `0`
+- Full available `tests/` suite after addition — **39/39 passed**, exit code `0`
 
-The adapter loads the available core snapshot, maps the real gate's expected call shape, refuses to fabricate missing inputs, and exposes a mapping helper. The new typed fixtures provide actual `Request`, `Reasoning`, `Critique`, `Risk`, and `ConstitutionResult` objects. The real `AgencyGate.decide()` returned `ACTION` with `action_requires_confirmation`, and the full local path completed through confirmation, boundary verification, and tool dispatch.
+The adapter loads the available core snapshot, maps the real gate's expected call shape, refuses to fabricate missing inputs, and exposes a mapping helper. The typed fixtures provide actual `Request`, `Reasoning`, `Critique`, `Risk`, and `ConstitutionResult` objects. The real `AgencyGate.decide()` returned `ACTION` with `action_requires_confirmation`, and the full local path completed through confirmation, boundary verification, and tool dispatch.
 
 The verified path is:
 
@@ -127,9 +130,9 @@ real AgencyGate.decide → real_gate_adapter → AgencyGateway → ConfirmationC
 
 ### Local CI-equivalent
 
-The `Makefile` pipeline was rerun after the typed-fixture addition:
+The `Makefile` pipeline was last recorded after the typed-fixture addition; the focused ABA update was verified with the full pytest suite:
 
-- Pytest: **35 passed**
+- Pytest: **39 passed**
 - Coverage on `aion/*`: **97%** (`187` statements, `6` missed)
 - Bandit: **No issues identified**
 - `make ci`: completed successfully
@@ -167,7 +170,7 @@ These documents consistently describe a broader proof phase, execution runtime, 
 
 ## Updated baseline statement
 
-> The available package contains fresh, directly reproducible evidence for the Python snapshot, CLI, selected AgencyGate and ConstitutionChecker branches, selected safety/trust/policy/risk helpers, isolated ConfirmationChannel behavior (18/18 focused tests), isolated and two-layer ExecutionBoundary behavior (6/6 focused tests), AgencyGateway coordination and local end-to-end flow (6/6 focused tests), real AgencyGate → adapter → gateway → boundary → local tool behavior (2/2 typed-fixture tests), adapter loading and missing-input behavior (3/3 tests), local CI-equivalent execution (35 tests, 97% aion coverage, no Bandit issues), local AuditLog behavior, MockTool behavior, and selected Pipeline composition. It does not contain a standalone Executor artifact, real external tools, or the broader historical regression environment. Historical 45-test and 89-test claims remain historical and are not fresh evidence for this extracted package.
+> The available package contains fresh, directly reproducible evidence for the Python snapshot, CLI, selected AgencyGate and ConstitutionChecker branches, selected safety/trust/policy/risk helpers, isolated ConfirmationChannel behavior (22/22 focused tests, including ABA detection via `target_hash`), isolated and two-layer ExecutionBoundary behavior (6/6 focused tests), AgencyGateway coordination and local end-to-end flow (6/6 focused tests), real AgencyGate → adapter → gateway → boundary → local tool behavior (2/2 typed-fixture tests), adapter loading and missing-input behavior (3/3 tests), local CI-equivalent execution (39 tests; the last recorded CI run had 97% aion coverage and no Bandit issues), local AuditLog behavior, MockTool behavior, and selected Pipeline composition. It does not contain a standalone Executor artifact, real external tools, or the broader historical regression environment. Historical 45-test and 89-test claims remain historical and are not fresh evidence for this extracted package.
 
 ## Non-changes
 
@@ -176,4 +179,5 @@ These documents consistently describe a broader proof phase, execution runtime, 
 - Real external tools and broader end-to-end regression remain out of scope.
 - No claim was made that local ToolRegistry tests prove production tool safety.
 - No claim was made that all real-gate branches or production Pipeline orchestration have been tested.
+- `target_version` alone does not detect ABA. Content-hash binding via `target_hash` closes this case.
 - Historical documentation and preserved pytest outputs were not upgraded to fresh evidence beyond the newly executed focused suites.

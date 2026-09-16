@@ -1,8 +1,9 @@
 """Execution boundary — enforces confirmation before any sensitive action is executed."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from aion.execution.channel import (
     ConfirmationChannel,
@@ -81,7 +82,7 @@ class ExecutionBoundary:
         tool_fn = self.registry.get(tool)
         try:
             result = tool_fn(payload)
-        except Exception as exc:
+        except (RuntimeError, ValueError, TypeError) as exc:
             return ExecutionResult(
                 executed=False,
                 reason=f"tool_error: {type(exc).__name__}",

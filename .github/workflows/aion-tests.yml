@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest coverage bandit
+          pip install pytest coverage bandit ruff
 
       - name: Run tests
         run: python -m pytest tests/ -v
@@ -32,6 +32,9 @@ jobs:
         run: |
           coverage run -m pytest tests/
           coverage report --include="aion/*" --fail-under=90
+
+      - name: Lint with ruff
+        run: ruff check aion/ tests/
 
       - name: Security scan
         run: bandit -r aion/ tests/ -ll

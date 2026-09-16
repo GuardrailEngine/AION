@@ -25,6 +25,7 @@ class ConfirmationEvent:
     expires_at: datetime
     payload_hash: str | None = None
     target_version: str | None = None
+    target_hash: str | None = None
     used: bool = False
 
     def is_valid_for(
@@ -35,6 +36,7 @@ class ConfirmationEvent:
         now: datetime,
         payload_hash: str | None = None,
         current_target_version: str | None = None,
+        current_target_hash: str | None = None,
         request_id: str | None = None,
     ) -> tuple[bool, str]:
         if self.used:
@@ -49,12 +51,24 @@ class ConfirmationEvent:
             return False, "tool_mismatch"
         if session_id != self.session_id:
             return False, "session_mismatch"
-        if self.payload_hash is not None and payload_hash is not None:
-            if payload_hash != self.payload_hash:
-                return False, "payload_mismatch"
-        if self.target_version is not None and current_target_version is not None:
-            if current_target_version != self.target_version:
-                return False, "target_drift"
+        if (
+            self.payload_hash is not None
+            and payload_hash is not None
+            and payload_hash != self.payload_hash
+        ):
+            return False, "payload_mismatch"
+        if (
+            self.target_version is not None
+            and current_target_version is not None
+            and current_target_version != self.target_version
+        ):
+            return False, "target_drift"
+        if (
+            self.target_hash is not None
+            and current_target_hash is not None
+            and current_target_hash != self.target_hash
+        ):
+            return False, "target_hash_mismatch"
         return True, "ok"
 
 
@@ -77,6 +91,7 @@ class ConfirmationChannel:
         payload: Any | None = None,
         payload_hash: str | None = None,
         target_version: str | None = None,
+        target_hash: str | None = None,
     ) -> ConfirmationEvent:
         if payload is not None and payload_hash is None:
             payload_hash = hash_payload(payload)
@@ -91,6 +106,7 @@ class ConfirmationChannel:
             expires_at=now + self.ttl,
             payload_hash=payload_hash,
             target_version=target_version,
+            target_hash=target_hash,
         )
         self._events[event.request_id] = event
         self._audit.append({
@@ -112,6 +128,7 @@ class ConfirmationChannel:
         payload: Any | None = None,
         payload_hash: str | None = None,
         current_target_version: str | None = None,
+        current_target_hash: str | None = None,
         request_id: str | None = None,
     ) -> tuple[bool, str]:
         if payload is not None and payload_hash is None:
@@ -124,6 +141,7 @@ class ConfirmationChannel:
             now=now,
             payload_hash=payload_hash,
             current_target_version=current_target_version,
+            current_target_hash=current_target_hash,
             request_id=request_id,
         )
         self._audit.append({
@@ -159,6 +177,7 @@ class ConfirmationChannel:
         payload: Any | None = None,
         payload_hash: str | None = None,
         current_target_version: str | None = None,
+        current_target_hash: str | None = None,
         request_id: str | None = None,
     ) -> tuple[bool, str]:
         """Verify scope, then consume only if valid.
@@ -174,6 +193,7 @@ class ConfirmationChannel:
             payload=payload,
             payload_hash=payload_hash,
             current_target_version=current_target_version,
+            current_target_hash=current_target_hash,
             request_id=request_id,
         )
         if valid:

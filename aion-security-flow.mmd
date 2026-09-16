@@ -1,0 +1,17 @@
+flowchart LR
+    U["Request and payload"] --> I["ConfirmationChannel.issue"]
+    I --> E["ConfirmationEvent<br/>request/action/tool/session<br/>payload_hash, nonce, expiry"]
+    E --> C["User approval"]
+    C --> B["ExecutionBoundary.execute"]
+    B --> H["hash_payload"]
+    H --> V{"ConfirmationChannel.consume<br/>scope and hash verification"}
+    V -- refused --> R["No handler call"]
+    V -- allowed --> X["Executor / registered handler"]
+    X --> O["Tool result"]
+    B --> A["ExecutionBoundary audit log"]
+    V --> CA["Channel audit log"]
+    R --> A
+    X --> A
+    O --> A
+    A --> L["audit_id, scope, payload_hash,<br/>validation, status, reason, timing"]
+    CA --> CL["channel result, reason, timestamp"]

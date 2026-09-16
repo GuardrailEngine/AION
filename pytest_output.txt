@@ -1,0 +1,99 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0 -- /usr/bin/python
+cachedir: .pytest_cache
+rootdir: /home/ubuntu/aion
+plugins: anyio-4.14.2
+collecting ... collected 0 items / 8 errors
+
+==================================== ERRORS ====================================
+__________________ ERROR collecting tests/test_adversarial.py __________________
+ImportError while importing test module '/home/ubuntu/aion/tests/test_adversarial.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_adversarial.py:5: in <module>
+    from aion_core import (
+E   ImportError: cannot import name 'Pipeline' from 'aion_core' (/home/ubuntu/aion/aion_core.py)
+________________ ERROR collecting tests/test_boundary_audit.py _________________
+ImportError while importing test module '/home/ubuntu/aion/tests/test_boundary_audit.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_boundary_audit.py:5: in <module>
+    from aion_core import (
+E   ImportError: cannot import name 'Pipeline' from 'aion_core' (/home/ubuntu/aion/aion_core.py)
+________________ ERROR collecting tests/test_i1_to_i5_agency.py ________________
+ImportError while importing test module '/home/ubuntu/aion/tests/test_i1_to_i5_agency.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_i1_to_i5_agency.py:6: in <module>
+    from aion_core import (
+E   ImportError: cannot import name 'AgencyGate' from 'aion_core' (/home/ubuntu/aion/aion_core.py). Did you mean: 'AgencyLevel'?
+_____________ ERROR collecting tests/test_i6_untrusted_outputs.py ______________
+ImportError while importing test module '/home/ubuntu/aion/tests/test_i6_untrusted_outputs.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_i6_untrusted_outputs.py:7: in <module>
+    from aion_core import AgencyGate, Pipeline
+E   ImportError: cannot import name 'AgencyGate' from 'aion_core' (/home/ubuntu/aion/aion_core.py). Did you mean: 'AgencyLevel'?
+________________ ERROR collecting tests/test_i7_safety_floor.py ________________
+ImportError while importing test module '/home/ubuntu/aion/tests/test_i7_safety_floor.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_i7_safety_floor.py:5: in <module>
+    from aion_core import (
+E   ImportError: cannot import name 'Pipeline' from 'aion_core' (/home/ubuntu/aion/aion_core.py)
+________________ ERROR collecting tests/test_i8_sanitization.py ________________
+ImportError while importing test module '/home/ubuntu/aion/tests/test_i8_sanitization.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_i8_sanitization.py:5: in <module>
+    from aion_core import (
+E   ImportError: cannot import name 'Pipeline' from 'aion_core' (/home/ubuntu/aion/aion_core.py)
+________________ ERROR collecting tests/test_i9_constitution.py ________________
+ImportError while importing test module '/home/ubuntu/aion/tests/test_i9_constitution.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_i9_constitution.py:6: in <module>
+    from aion_core import (
+E   ImportError: cannot import name 'ConstitutionChecker' from 'aion_core' (/home/ubuntu/aion/aion_core.py). Did you mean: 'ConstitutionOutcome'?
+_________________ ERROR collecting tests/test_tool_boundary.py _________________
+ImportError while importing test module '/home/ubuntu/aion/tests/test_tool_boundary.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_tool_boundary.py:6: in <module>
+    from aion_core import (
+E   ImportError: cannot import name 'AgencyGate' from 'aion_core' (/home/ubuntu/aion/aion_core.py). Did you mean: 'AgencyLevel'?
+=========================== short test summary info ============================
+ERROR tests/test_adversarial.py
+ERROR tests/test_boundary_audit.py
+ERROR tests/test_i1_to_i5_agency.py
+ERROR tests/test_i6_untrusted_outputs.py
+ERROR tests/test_i7_safety_floor.py
+ERROR tests/test_i8_sanitization.py
+ERROR tests/test_i9_constitution.py
+ERROR tests/test_tool_boundary.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 8 errors during collection !!!!!!!!!!!!!!!!!!!!
+============================== 8 errors in 0.22s ===============================

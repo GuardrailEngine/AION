@@ -91,6 +91,7 @@ class AgencyGateway:
             session_id=request["session_id"],
             payload=request["payload"],
             target_version=request.get("target_version"),
+            target_hash=request.get("target_hash"),
         )
 
         return GateDecision(

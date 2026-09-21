@@ -1,16 +1,22 @@
-.PHONY: test coverage security ci clean
+.PHONY: test coverage lint security ci clean
+
+PYTEST := python -m pytest -q
+RUFF := ruff check aion aion_core.py tests
 
 test:
-	python -m pytest tests/ -v
+	$(PYTEST)
 
 coverage:
-	coverage run -m pytest tests/
+	coverage run -m pytest -q
 	coverage report --include="aion/*" --fail-under=90
+
+lint:
+	$(RUFF)
 
 security:
 	bandit -r aion/ tests/ -ll
 
-ci: test coverage security
+ci: test coverage lint security
 	@echo "CI equivalent completed successfully"
 
 clean:

@@ -2,6 +2,7 @@
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -13,9 +14,12 @@ from aion.execution.channel import (
 
 def test_expired_confirmation():
     channel = ConfirmationChannel(ttl_seconds=1)
-    event = channel.issue("delete_file", "fs", "s1", payload={"p": "a"})
-    event.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
-    valid, reason = channel.verify(event, "delete_file", "fs", "s1", payload={"p": "a"})
+    issued_at = datetime.now(timezone.utc) - timedelta(seconds=2)
+    with patch.object(channel, "_now", side_effect=[issued_at, datetime.now(timezone.utc)]):
+        event = channel.issue("delete_file", "fs", "s1", payload={"p": "a"})
+        valid, reason = channel.verify(
+            event, "delete_file", "fs", "s1", payload={"p": "a"}
+        )
     assert not valid
     assert reason == "expired"
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -14,7 +15,7 @@ def hash_payload(payload: Any) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-@dataclass
+@dataclass(frozen=True)
 class ConfirmationEvent:
     request_id: str
     action: str
@@ -79,6 +80,7 @@ class ConfirmationChannel:
         self.ttl = timedelta(seconds=ttl_seconds)
         self._events: dict[str, ConfirmationEvent] = {}
         self._audit: list[dict[str, Any]] = []
+        self._consume_lock = threading.Lock()
 
     def _now(self) -> datetime:
         return datetime.now(timezone.utc)
@@ -161,7 +163,7 @@ class ConfirmationChannel:
         """
         if event.used:
             raise ValueError("Event already consumed")
-        event.used = True
+        object.__setattr__(event, "used", True)
         self._audit.append({
             "event": "consumed",
             "request_id": event.request_id,
@@ -185,25 +187,26 @@ class ConfirmationChannel:
         This is the safe path. Use it unless you have a specific
         reason to separate verify from consume.
         """
-        valid, reason = self.verify(
-            event=event,
-            action=action,
-            tool=tool,
-            session_id=session_id,
-            payload=payload,
-            payload_hash=payload_hash,
-            current_target_version=current_target_version,
-            current_target_hash=current_target_hash,
-            request_id=request_id,
-        )
-        if valid:
-            event.used = True
-            self._audit.append({
-                "event": "consumed",
-                "request_id": event.request_id,
-                "timestamp": self._now().isoformat(),
-            })
-        return valid, reason
+        with self._consume_lock:
+            valid, reason = self.verify(
+                event=event,
+                action=action,
+                tool=tool,
+                session_id=session_id,
+                payload=payload,
+                payload_hash=payload_hash,
+                current_target_version=current_target_version,
+                current_target_hash=current_target_hash,
+                request_id=request_id,
+            )
+            if valid:
+                object.__setattr__(event, "used", True)
+                self._audit.append({
+                    "event": "consumed",
+                    "request_id": event.request_id,
+                    "timestamp": self._now().isoformat(),
+                })
+            return valid, reason
 
     def audit_log(self) -> list[dict[str, Any]]:
         return list(self._audit)

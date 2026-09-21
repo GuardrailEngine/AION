@@ -52,9 +52,11 @@ class ExecutionBoundary:
         self,
         channel: ConfirmationChannel,
         registry: ToolRegistry,
+        target_authority: Any | None = None,
     ) -> None:
         self.channel = channel
         self.registry = registry
+        self.target_authority = target_authority
 
     def _record_binding_drift(self, event: ConfirmationEvent, action: str, finding: dict) -> None:
         """Record Phase A binding drift in the channel's existing audit sink."""
@@ -76,6 +78,8 @@ class ExecutionBoundary:
         tool: str,
         session_id: str,
         payload: Any,
+        *,
+        target_ref: Any | None = None,
     ) -> ExecutionResult:
         if not self.registry.has(tool):
             return ExecutionResult(
@@ -83,12 +87,59 @@ class ExecutionBoundary:
                 reason="unknown_tool",
             )
 
+        current_target_version = None
+        current_target_hash = None
+
+        if self.target_authority is not None and target_ref is not None:
+            preliminarily_valid, preliminary_reason = self.channel.verify(
+                event=event,
+                action=action,
+                tool=tool,
+                session_id=session_id,
+                payload=payload,
+            )
+            if not preliminarily_valid:
+                return ExecutionResult(
+                    executed=False,
+                    reason=preliminary_reason,
+                )
+
+            try:
+                snapshot = self.target_authority.snapshot(action, target_ref)
+            except FileNotFoundError:
+                return ExecutionResult(
+                    executed=False,
+                    reason="target_not_found",
+                )
+
+            if (
+                event.target_version is not None
+                and snapshot.version != event.target_version
+            ):
+                return ExecutionResult(
+                    executed=False,
+                    reason="target_drift",
+                )
+            if (
+                event.target_hash is not None
+                and snapshot.content_hash != event.target_hash
+            ):
+                return ExecutionResult(
+                    executed=False,
+                    reason="target_drift",
+                )
+
+            current_target_version = snapshot.version
+            current_target_hash = snapshot.content_hash
+
         valid, reason = self.channel.verify_and_consume(
             event=event,
             action=action,
             tool=tool,
             session_id=session_id,
             payload=payload,
+            current_target_version=current_target_version,
+            current_target_hash=current_target_hash,
         )
 
         if not valid:

@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Any
 
 from aion.execution.channel import (
     ConfirmationChannel,
@@ -45,9 +46,11 @@ class AgencyGateway:
         self,
         channel: ConfirmationChannel,
         gate_evaluator: Callable[[dict], tuple[bool, str]],
+        target_authority: Any | None = None,
     ) -> None:
         self.channel = channel
         self.gate_evaluator = gate_evaluator
+        self.target_authority = target_authority
 
     def route(
         self,
@@ -85,13 +88,38 @@ class AgencyGateway:
                 reason=reason,
             )
 
+        target_version = request.get("target_version")
+        target_hash = request.get("target_hash")
+
+        if (
+            self.target_authority is not None
+            and request.get("target_ref") is not None
+        ):
+            try:
+                snapshot = self.target_authority.snapshot(
+                    request["action"],
+                    request["target_ref"],
+                )
+            except FileNotFoundError:
+                return GateDecision(
+                    request_id="",
+                    is_action=True,
+                    requires_confirmation=False,
+                    confirmation=None,
+                    reason="target_not_found",
+                )
+
+            # Authority-owned values replace caller-provided values.
+            target_version = snapshot.version
+            target_hash = snapshot.content_hash
+
         event = self.channel.issue(
             action=request["action"],
             tool=request["tool"],
             session_id=request["session_id"],
             payload=request["payload"],
-            target_version=request.get("target_version"),
-            target_hash=request.get("target_hash"),
+            target_version=target_version,
+            target_hash=target_hash,
         )
 
         return GateDecision(

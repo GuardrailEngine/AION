@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
+from aion.binding import TracingRow, detect_binding_drift, get_binding
 from aion.execution.channel import (
     ConfirmationChannel,
     ConfirmationEvent,
@@ -54,6 +56,19 @@ class ExecutionBoundary:
         self.channel = channel
         self.registry = registry
 
+    def _record_binding_drift(self, event: ConfirmationEvent, action: str, finding: dict) -> None:
+        """Record Phase A binding drift in the channel's existing audit sink."""
+        self.channel._audit.append({
+            "event": "binding_drift",
+            "layer": "binding_drift",
+            "request_id": event.request_id,
+            "action": action,
+            "undeclared_fields": finding["undeclared_fields"],
+            "unused_fields": finding["unused_fields"],
+            "risk": finding["severity"],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+
     def execute(
         self,
         event: ConfirmationEvent,
@@ -80,13 +95,33 @@ class ExecutionBoundary:
             return ExecutionResult(executed=False, reason=reason)
 
         tool_fn = self.registry.get(tool)
+        execution_payload = payload
+        traced_payload = None
+        if isinstance(payload, dict):
+            traced_payload = TracingRow(payload)
+            execution_payload = traced_payload
         try:
-            result = tool_fn(payload)
+            result = tool_fn(execution_payload)
         except (RuntimeError, ValueError, TypeError) as exc:
+            if traced_payload is not None:
+                finding = detect_binding_drift(
+                    traced_payload.accessed_fields,
+                    get_binding(action),
+                )
+                if finding is not None:
+                    self._record_binding_drift(event, action, finding)
             return ExecutionResult(
                 executed=False,
                 reason=f"tool_error: {type(exc).__name__}",
             )
+
+        if traced_payload is not None:
+            finding = detect_binding_drift(
+                traced_payload.accessed_fields,
+                get_binding(action),
+            )
+            if finding is not None:
+                self._record_binding_drift(event, action, finding)
 
         return ExecutionResult(
             executed=True,

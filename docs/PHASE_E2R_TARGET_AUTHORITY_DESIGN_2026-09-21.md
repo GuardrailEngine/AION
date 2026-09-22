@@ -234,6 +234,14 @@ It does not eliminate a race in which the resource changes after the final read 
 
 The target authority must also define whether tool execution itself mutates the target. A read-only tool may require only a stable snapshot; a mutating tool must use a resource-owner precondition if the invariant includes state continuity through the side effect.
 
+## Known Limitation — Compare-and-Execute Atomicity (NOT ESTABLISHED)
+
+The current path has a residual TOCTOU window between `TargetAuthority.snapshot()` and tool invocation. The authority snapshot and the comparison can succeed, and the underlying file can then change before the tool performs its side effect.
+
+The guarantee is limited to the values captured at issuance and the fresh values returned by the authority at the boundary check: those values reflect the disk state observed at their respective snapshot times. The current path does **not** guarantee that the tool runs on the same content that was verified. A change after the final snapshot and before the tool side effect is not detected by the current path.
+
+Closing this window requires coordination such as locking, a re-snapshot policy coupled to execution, or an fd-based compare-and-execute commit. That design is deferred and was explicitly out of scope for E2R from the start. The classification is **NOT ESTABLISHED**. This is not a bug in the current implementation; it is a known boundary of the guarantee.
+
 ## 10. Target-Free Actions
 
 The current code does not contain an explicit target mode. `get_binding()` returns a full-row default for unknown actions, which is not evidence that an action is target-free. Existing action names are insufficient to classify target requirements without tool contracts and resource ownership information.

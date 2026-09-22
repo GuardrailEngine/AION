@@ -29,7 +29,16 @@ class TargetSnapshot:
 
 
 class FileSystemTargetAuthority:
-    """Read authoritative version and content state from the filesystem."""
+    """Read authoritative version and content state from the filesystem.
+
+    Known limitation — TOCTOU window:
+    Between ``snapshot()`` and the tool invocation in ``ExecutionBoundary``,
+    the underlying file may change on disk. The version and content hash
+    recorded at snapshot time therefore describe the state at issuance, not
+    necessarily the state at execution. This is a deliberate, documented
+    boundary of the current guarantee. Closing this window requires atomic
+    compare-and-execute, which is explicitly out of scope.
+    """
 
     def snapshot(self, action: str, target_ref: TargetRef) -> TargetSnapshot:
         """Return the current snapshot for ``target_ref``.

@@ -26,15 +26,15 @@ two common false inferences:
                                       final approval, and verification
                                       claims
 
-  **Specification**                   DeepSeek + ChatGPT: architecture,
+  **Specification**                   External AI collaborators: architecture,
                                       invariants, constitutional rules,
                                       and adversarial design
 
-  **Execution**                       Manus: file creation/modification,
+  **Execution**                       Sandboxed execution environment: file creation/modification,
                                       pytest execution, and runtime
                                       evidence collection
 
-  **Evidence**                        Manus + Human: pytest output,
+  **Evidence**                        Sandboxed execution environment + Human: pytest output,
                                       transcripts, and reports
   -----------------------------------------------------------------------
 

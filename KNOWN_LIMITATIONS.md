@@ -47,6 +47,9 @@ boundaries:
 8.  **Confirmation → execution**
 9.  **Collusion → boundaries**
 10. **Longitudinal state → boundaries**
+11. **Target binding at execution → drift refusal** (with documented
+    TOCTOU boundary; see PHASE_E2R_TARGET_AUTHORITY_DESIGN_2026-09-21.md
+    and tests/test_toctou_known_limitation.py)
 
 These are evidence-backed within the tested Reference Implementation
 scope. They are not claims of general security or exhaustive coverage.
@@ -59,6 +62,9 @@ sufficiently exercised to establish a runtime proof:
 -   `ConfirmationChannel._sign` under adversarial access to the shared
     secret;
 -   `AuditLog` behavior under external filesystem modification;
+    note: hash-chain integrity check (`verify_audit_integrity()`)
+    is available (a68cd43), but is not proven against all external
+    modification classes (truncation, reordering, selective deletion).
 -   all syntactically valid but semantically inconsistent combinations
     of execution events and payloads.
 
@@ -70,7 +76,9 @@ The following were deliberately excluded from the proof phase:
 
 -   distributed confirmation;
 -   cryptographic authentication;
--   tamper-resistant audit;
+-   tamper-resistant audit (cryptographic, externally-trusted);
+    note: application-level hash-chain tamper-EVIDENCE is implemented
+    (see Proven section), which detects but does not prevent tampering.
 -   persistent memory;
 -   real external tools;
 -   production deployment.
@@ -82,6 +90,9 @@ authentication systems.
 
 Likewise, the audit implementation is an application-level append-only
 record, not a tamper-resistant or independently trusted audit system.
+Application-level tamper-EVIDENCE (hash chaining) is now available and is
+documented under Proven Boundaries; this is distinct from, and does not
+substitute for, tamper-resistance.
 
 ## Unknown
 
@@ -94,9 +105,10 @@ The following remain explicitly unknown:
 The absence of a discovered failure in these areas is not evidence of
 completeness.
 
-## 89/89 Baseline
+## Regression Baseline
 
-The proof phase produced an **89/89 regression baseline**.
+The proof phase produced a **136/136 regression baseline** (as of
+2026-09-22; previous baseline: 89/89 as of 2026-09-15).
 
 This establishes the recorded result for the tested Reference
 Implementation and its defined test suite.
@@ -148,4 +160,4 @@ documentation.
 
 **Proof Phase:** v2.1 → v0.4\
 **Status:** Proof-phase limitations\
-**Last updated:** 2026-09-15
+**Last updated:** 2026-09-22

@@ -10,7 +10,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
 
-
 _AUDIT_GENESIS_HASH = "0" * 64
 
 

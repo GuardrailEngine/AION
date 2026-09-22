@@ -1,3 +1,23 @@
+> ## ⚠️ ARCHIVED — DO NOT USE AS CURRENT REFERENCE
+>
+> **Archived on:** 2026-09-22
+>
+> This manifest describes the pre-rename `aion-confirmation-channel`
+> repository. It is preserved as historical provenance only. The files
+> it references (including `AION_Architecture.md`,
+> `AION_Reference_Implementation.md`, `AION_STATUS.md`,
+> `REGRESSION_BASELINE.md`, and `aion/execution/executor.py`) do not
+> exist in the current AION repository. Its verification summary
+> ("25 passed", "GitHub Actions: not yet observed") reflects an
+> earlier state and is not current.
+>
+> **Source of truth for current structure:** README.md
+> **Source of truth for current status:** KNOWN_LIMITATIONS.md
+> **Source of truth for provenance:** ORIGIN.md,
+> AION_Origin_and_Provenance.md
+>
+> See `git log --follow AION_Repository_Manifest.md` for history.
+
 # AION Repository Manifest
 
 **Purpose:** Review the exact files currently prepared for the private `aion-confirmation-channel` repository.

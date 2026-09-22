@@ -1,6 +1,7 @@
 """Confirmation channel for AION execution boundary."""
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import threading
@@ -10,8 +11,25 @@ from typing import Any
 from uuid import uuid4
 
 
+_AUDIT_GENESIS_HASH = "0" * 64
+
+
 def hash_payload(payload: Any) -> str:
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _hash_audit_record(record: dict[str, Any]) -> str:
+    content = {
+        key: value
+        for key, value in record.items()
+        if key != "record_hash"
+    }
+    canonical = json.dumps(
+        content,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -81,6 +99,19 @@ class ConfirmationChannel:
         self._events: dict[str, ConfirmationEvent] = {}
         self._audit: list[dict[str, Any]] = []
         self._consume_lock = threading.Lock()
+        self._audit_lock = threading.Lock()
+
+    def _append_audit(self, record: dict[str, Any]) -> None:
+        with self._audit_lock:
+            previous_hash = (
+                self._audit[-1]["record_hash"]
+                if self._audit
+                else _AUDIT_GENESIS_HASH
+            )
+            chained_record = dict(record)
+            chained_record["prev_hash"] = previous_hash
+            chained_record["record_hash"] = _hash_audit_record(chained_record)
+            self._audit.append(chained_record)
 
     def _now(self) -> datetime:
         return datetime.now(timezone.utc)
@@ -111,7 +142,7 @@ class ConfirmationChannel:
             target_hash=target_hash,
         )
         self._events[event.request_id] = event
-        self._audit.append({
+        self._append_audit({
             "event": "issued",
             "request_id": event.request_id,
             "action": action,
@@ -146,7 +177,7 @@ class ConfirmationChannel:
             current_target_hash=current_target_hash,
             request_id=request_id,
         )
-        self._audit.append({
+        self._append_audit({
             "event": "verified",
             "request_id": event.request_id,
             "result": "allowed" if valid else "refused",
@@ -164,7 +195,7 @@ class ConfirmationChannel:
         if event.used:
             raise ValueError("Event already consumed")
         object.__setattr__(event, "used", True)
-        self._audit.append({
+        self._append_audit({
             "event": "consumed",
             "request_id": event.request_id,
             "timestamp": self._now().isoformat(),
@@ -201,7 +232,7 @@ class ConfirmationChannel:
             )
             if valid:
                 object.__setattr__(event, "used", True)
-                self._audit.append({
+                self._append_audit({
                     "event": "consumed",
                     "request_id": event.request_id,
                     "timestamp": self._now().isoformat(),
@@ -209,4 +240,20 @@ class ConfirmationChannel:
             return valid, reason
 
     def audit_log(self) -> list[dict[str, Any]]:
-        return list(self._audit)
+        with self._audit_lock:
+            return copy.deepcopy(self._audit)
+
+    def verify_audit_integrity(self) -> tuple[bool, int | None]:
+        with self._audit_lock:
+            expected_previous_hash = _AUDIT_GENESIS_HASH
+            for index, record in enumerate(self._audit):
+                if record.get("prev_hash") != expected_previous_hash:
+                    return False, index
+
+                expected_record_hash = _hash_audit_record(record)
+                if record.get("record_hash") != expected_record_hash:
+                    return False, index
+
+                expected_previous_hash = record["record_hash"]
+
+            return True, None

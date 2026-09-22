@@ -60,7 +60,7 @@ class ExecutionBoundary:
 
     def _record_binding_drift(self, event: ConfirmationEvent, action: str, finding: dict) -> None:
         """Record Phase A binding drift in the channel's existing audit sink."""
-        self.channel._audit.append({
+        self.channel._append_audit({
             "event": "binding_drift",
             "layer": "binding_drift",
             "request_id": event.request_id,

@@ -191,14 +191,18 @@ def test_non_dict_mapping_bypasses_tracing_wrapper_in_boundary():
 
 
 def test_channel_audit_records_are_mutable_and_process_local():
-    """Audit output is a shallow list copy over mutable in-memory records."""
+    """Legacy evidence: the former shallow-mutability gap is now closed.
+
+    The tamper-evidence behavior is covered by
+    tests/test_audit_tamper_evidence.py.
+    """
     channel = ConfirmationChannel()
     channel.issue("action", "tool", "s1", payload={"x": 1})
     records = channel.audit_log()
     records[0]["event"] = "tampered-in-caller"
-    assert channel.audit_log()[0]["event"] == "tampered-in-caller"
+    assert channel.audit_log()[0]["event"] == "issued"
+    assert channel.verify_audit_integrity() == (True, None)
 
     other_channel = ConfirmationChannel()
     assert other_channel.audit_log() == []
-    assert not hasattr(channel, "verify_audit_integrity")
     assert not hasattr(channel, "audit_signature")

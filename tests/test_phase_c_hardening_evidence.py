@@ -189,19 +189,23 @@ def test_payload_type_matrix_separates_hashing_wrapping_and_observability():
 
 
 def test_audit_records_are_shallow_mutable_process_local_without_integrity_check():
-    """Mutating returned audit records mutates channel state; no verifier exists."""
+    """Legacy evidence: the former shallow-mutability gap is now closed.
+
+    The tamper-evidence behavior is covered by
+    tests/test_audit_tamper_evidence.py.
+    """
     channel = ConfirmationChannel()
     channel.issue("action", "tool", "s1", payload={"x": 1})
     records = channel.audit_log()
     records[0]["event"] = "caller-mutated"
-    assert channel.audit_log()[0]["event"] == "caller-mutated"
+    assert channel.audit_log()[0]["event"] == "issued"
+    assert channel.verify_audit_integrity() == (True, None)
 
     other_channel = ConfirmationChannel()
     assert other_channel.audit_log() == []
-    assert not hasattr(channel, "verify_audit_integrity")
     assert not hasattr(channel, "audit_signature")
-    # Classification: PROVEN BY TEST for mutability/process-local behavior;
-    # integrity is NOT ESTABLISHED.
+    # Classification: the prior shallow-mutability seam is closed; see the
+    # dedicated tamper-evidence tests for the current behavior.
 
 
 def test_pipeline_does_not_automatically_reach_confirmation_boundary(tmp_path):

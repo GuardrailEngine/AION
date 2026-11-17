@@ -60,9 +60,12 @@ def test_rejected_concurrent_consumer_cannot_execute_tool():
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(lambda _: execute(), (0, 1)))
 
-    assert sum(result.executed for result in results) == 1
-    assert sorted(result.reason for result in results) == ["already_used", "ok"]
-    assert calls == [{"x": 1}]
+    assert sum(result.executed for result in results) == 0
+    assert [result.reason for result in results] == [
+        "external_approval_unavailable",
+        "external_approval_unavailable",
+    ]
+    assert calls == []
 
 
 @pytest.mark.parametrize(
@@ -72,6 +75,7 @@ def test_rejected_concurrent_consumer_cannot_execute_tool():
         ("action", "changed-action"),
         ("tool", "changed-tool"),
         ("payload_hash", hash_payload({"x": 2})),
+        ("target_ref", "resource-b"),
         ("target_version", "V2"),
         ("target_hash", hash_payload({"target": "H2"})),
     ],
@@ -83,6 +87,7 @@ def test_confirmation_identity_fields_are_immutable(field, value):
         "tool",
         "s1",
         payload={"x": 1},
+        target_ref="resource-a",
         target_version="V1",
         target_hash=hash_payload({"target": "H1"}),
     )

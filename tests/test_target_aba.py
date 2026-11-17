@@ -1,83 +1,58 @@
-"""Test ABA detection with target content hashes."""
-import sys
-from pathlib import Path
+"""Tests that target identity and content hash close version-only ABA gaps."""
+from __future__ import annotations
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+import pytest
 
 from aion.execution.channel import ConfirmationChannel, hash_payload
 
 
-def test_aba_passes_with_version_only():
-    """Document the gap: version-only checking passes an ABA transition."""
+def test_version_only_target_binding_is_rejected():
     channel = ConfirmationChannel()
-    event = channel.issue(
-        "delete_file", "fs", "s1",
-        payload={"path": "file_A.txt"},
-        target_version="v1",
-    )
-    valid, reason = channel.verify(
-        event, "delete_file", "fs", "s1",
-        payload={"path": "file_A.txt"},
-        current_target_version="v1",
-    )
-    assert valid is True
-    assert reason == "ok"
+    with pytest.raises(ValueError, match="target_ref, target_version, and target_hash"):
+        channel.issue(
+            "delete_file", "fs", "s1", payload={"path": "file_A.txt"},
+            target_version="v1",
+        )
 
 
-def test_aba_rejected_with_target_hash():
-    """A changed target is rejected even when its version returns to v1."""
+def test_aba_rejected_with_target_hash_and_identity():
     channel = ConfirmationChannel()
     initial_hash = hash_payload({"content": "file_A_initial_content"})
     event = channel.issue(
-        "delete_file", "fs", "s1",
-        payload={"path": "file_A.txt"},
-        target_version="v1",
-        target_hash=initial_hash,
+        "delete_file", "fs", "s1", payload={"path": "file_A.txt"},
+        target_ref="file_A.txt", target_version="v1", target_hash=initial_hash,
     )
     changed_hash = hash_payload({"content": "file_A_changed_content"})
-    valid, reason = channel.verify(
-        event, "delete_file", "fs", "s1",
-        payload={"path": "file_A.txt"},
-        current_target_version="v1",
+    assert channel.verify(
+        event, "delete_file", "fs", "s1", payload={"path": "file_A.txt"},
+        current_target_ref="file_A.txt", current_target_version="v1",
         current_target_hash=changed_hash,
-    )
-    assert valid is False
-    assert reason == "target_hash_mismatch"
+    ) == (False, "target_hash_mismatch")
 
 
-def test_unchanged_target_hash_passes():
-    """An unchanged target passes when both version and hash match."""
+def test_unchanged_target_requires_all_bound_values():
     channel = ConfirmationChannel()
     content_hash = hash_payload({"content": "file_A_initial_content"})
+    payload = {"path": "file_A.txt"}
     event = channel.issue(
-        "delete_file", "fs", "s1",
-        payload={"path": "file_A.txt"},
-        target_version="v1",
-        target_hash=content_hash,
+        "delete_file", "fs", "s1", payload=payload,
+        target_ref="file_A.txt", target_version="v1", target_hash=content_hash,
     )
-    valid, reason = channel.verify(
-        event, "delete_file", "fs", "s1",
-        payload={"path": "file_A.txt"},
-        current_target_version="v1",
+    assert channel.verify(
+        event, "delete_file", "fs", "s1", payload=payload,
+        current_target_ref="file_A.txt", current_target_version="v1",
         current_target_hash=content_hash,
-    )
-    assert valid is True
-    assert reason == "ok"
+    ) == (True, "ok")
 
 
-def test_target_hash_ignored_when_not_bound():
-    """An unbound event retains version-only backward compatibility."""
+def test_target_hash_cannot_be_ignored_when_current_state_is_missing():
     channel = ConfirmationChannel()
+    payload = {"path": "file_A.txt"}
     event = channel.issue(
-        "delete_file", "fs", "s1",
-        payload={"path": "file_A.txt"},
-        target_version="v1",
+        "delete_file", "fs", "s1", payload=payload,
+        target_ref="file_A.txt", target_version="v1", target_hash="h1",
     )
-    valid, reason = channel.verify(
-        event, "delete_file", "fs", "s1",
-        payload={"path": "file_A.txt"},
-        current_target_version="v1",
-        current_target_hash="some_other_hash",
-    )
-    assert valid is True
-    assert reason == "ok"
+    assert channel.verify(
+        event, "delete_file", "fs", "s1", payload=payload,
+        current_target_ref="file_A.txt", current_target_version="v1",
+    ) == (False, "target_state_unavailable")

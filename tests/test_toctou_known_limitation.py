@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-import hashlib
 import os
 from pathlib import Path
 
 from aion.execution.boundary import ExecutionBoundary, ToolRegistry
 from aion.execution.channel import ConfirmationChannel
-from aion.target.filesystem_authority import (
-    FileSystemTargetAuthority,
-    TargetRef,
-)
+from aion.target.filesystem_authority import FileSystemTargetAuthority, TargetRef
 
 
 class _MutatingAfterSnapshotAuthority:
+    """Simulate a file change immediately after returning the approved snapshot."""
+
     def __init__(self, path: Path, replacement: bytes) -> None:
         self._authority = FileSystemTargetAuthority()
         self._path = path
@@ -28,94 +26,45 @@ class _MutatingAfterSnapshotAuthority:
         return snapshot
 
 
-class _RecordingChannel(ConfirmationChannel):
-    def __init__(self) -> None:
-        super().__init__()
-        self.verify_and_consume_target = None
-
-    def verify_and_consume(self, *args, **kwargs):
-        self.verify_and_consume_target = (
-            kwargs.get("current_target_version"),
-            kwargs.get("current_target_hash"),
-        )
-        return super().verify_and_consume(*args, **kwargs)
-
-
-def _sha256(content: bytes) -> str:
-    return hashlib.sha256(content).hexdigest()
-
-
-def test_toctou_window_exists_between_snapshot_and_execution(tmp_path):
-    """This test documents a known limitation. It proves the window exists.
-
-    It does NOT prove the system is safe against it, and it does NOT propose
-    a fix.
-    """
+def test_toctou_path_refuses_dispatch_when_atomicity_is_unavailable(tmp_path):
     path = tmp_path / "resource.txt"
     content_a = b"content A"
     content_b = b"content B"
     path.write_bytes(content_a)
     target_ref = TargetRef(str(path))
     authority = FileSystemTargetAuthority()
-
     snapshot_a = authority.snapshot("read_file", target_ref)
-    channel = _RecordingChannel()
+    payload = {"path": str(path)}
+    channel = ConfirmationChannel()
     event = channel.issue(
-        action="read_file",
-        tool="filesystem-reader",
-        session_id="session-1",
-        payload={"path": str(path)},
-        target_version=snapshot_a.version,
+        "read_file", "filesystem-reader", "session-1", payload=payload,
+        target_ref=target_ref.path, target_version=snapshot_a.version,
         target_hash=snapshot_a.content_hash,
     )
 
     observed_by_tool = []
-
-    def read_tool(payload):
-        observed_by_tool.append(Path(payload["path"]).read_bytes())
-        return {"observed": observed_by_tool[-1]}
-
     registry = ToolRegistry()
-    registry.register("filesystem-reader", read_tool)
-    mutating_authority = _MutatingAfterSnapshotAuthority(path, content_b)
-    boundary = ExecutionBoundary(
-        channel,
-        registry,
-        target_authority=mutating_authority,
+    registry.register(
+        "filesystem-reader",
+        lambda body: observed_by_tool.append(Path(body["path"]).read_bytes()),
     )
+    mutating_authority = _MutatingAfterSnapshotAuthority(path, content_b)
+    boundary = ExecutionBoundary(channel, registry, mutating_authority)
 
     result = boundary.execute(
-        event,
-        "read_file",
-        "filesystem-reader",
-        "session-1",
-        {"path": str(path)},
+        event, "read_file", "filesystem-reader", "session-1", payload,
         target_ref=target_ref,
     )
     snapshot_b = authority.snapshot("read_file", target_ref)
 
-    assert (snapshot_a.version, snapshot_a.content_hash) == (
-        str(snapshot_a.version),
-        _sha256(content_a),
-    )
-    assert (snapshot_b.version, snapshot_b.content_hash) == (
-        str(snapshot_b.version),
-        _sha256(content_b),
-    )
-    assert (snapshot_a.version, snapshot_a.content_hash) != (
-        snapshot_b.version,
-        snapshot_b.content_hash,
-    )
     assert mutating_authority.before_change == snapshot_a
-    assert channel.verify_and_consume_target == (
-        snapshot_a.version,
-        snapshot_a.content_hash,
-    )
-    assert observed_by_tool == [content_b]
-    assert result.executed is True
+    assert snapshot_a.content_hash != snapshot_b.content_hash
+    assert path.read_bytes() == content_b
+    assert result.executed is False
+    assert result.reason == "atomic_target_execution_unavailable"
+    assert observed_by_tool == []
 
 
-def test_known_limitation_is_declared_in_docstring():
+def test_filesystem_authority_documents_atomicity_limit():
     docstring = FileSystemTargetAuthority.__doc__ or ""
-
     assert "TOCTOU" in docstring or "compare-and-execute" in docstring

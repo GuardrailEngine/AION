@@ -1,29 +1,11 @@
-"""Fixtures for real aion_core objects.
-
-Minimal deterministic values. They satisfy the actual shapes required by
-AgencyGate.decide() without modifying the available Core snapshot.
-"""
+"""Fixtures built from the repository's canonical aion_core module."""
 from __future__ import annotations
 
-import importlib.util
-import sys
-from pathlib import Path
-
-_CORE_PATH = Path(__file__).resolve().parents[1] / "aion_core (1).py"
-_CORE_MODULE_NAME = "aion_core_available_snapshot"
+import aion_core
 
 
 def _core():
-    existing = sys.modules.get(_CORE_MODULE_NAME)
-    if existing is not None:
-        return existing
-    spec = importlib.util.spec_from_file_location(_CORE_MODULE_NAME, _CORE_PATH)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"could not load Core snapshot: {_CORE_PATH}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[_CORE_MODULE_NAME] = module
-    spec.loader.exec_module(module)
-    return module
+    return aion_core
 
 
 def make_request(

@@ -1,4 +1,4 @@
-"""Phase C hardening evidence: precise observations, no production fixes."""
+"""Phase C regression evidence for hardening and execution refusal boundaries."""
 from __future__ import annotations
 
 import inspect
@@ -24,14 +24,15 @@ class CustomMapping(UserDict):
     """A non-dict Mapping implementation used only for evidence."""
 
 
-def test_execution_boundary_target_binding_is_structurally_unestablished():
-    """Channel proves drift rejection; Boundary lacks current-target inputs."""
+def test_execution_boundary_refuses_target_drift_and_nonatomic_dispatch():
+    """Channel checks full target state; boundary refuses non-atomic dispatch."""
     channel = ConfirmationChannel()
     event = channel.issue(
         "delete_file",
         "filesystem",
         "s1",
         payload={"path": "a.txt"},
+        target_ref="a.txt",
         target_version="V1",
         target_hash=hash_payload({"content": "H1"}),
     )
@@ -42,6 +43,7 @@ def test_execution_boundary_target_binding_is_structurally_unestablished():
         "filesystem",
         "s1",
         payload={"path": "a.txt"},
+        current_target_ref="a.txt",
         current_target_version="V2",
         current_target_hash=hash_payload({"content": "H2"}),
     )
@@ -50,8 +52,8 @@ def test_execution_boundary_target_binding_is_structurally_unestablished():
     boundary_parameters = inspect.signature(ExecutionBoundary.execute).parameters
     assert "current_target_version" not in boundary_parameters
     assert "current_target_hash" not in boundary_parameters
-    # Classification: TARGET BINDING AT CONFIRMATION = PROVEN;
-    # TARGET BINDING AT EXECUTION = NOT ESTABLISHED / STRUCTURAL GAP.
+    # The later execution path additionally requires a trusted authority and
+    # refuses dispatch because no atomic compare-and-execute adapter exists.
 
 
 def test_single_use_forced_overlap_allows_one_consumer_only():
@@ -88,6 +90,7 @@ def test_confirmation_event_identity_fields_are_immutable():
         "tool-a",
         "session-a",
         payload={"x": 1},
+        target_ref="resource-a",
         target_version="V1",
         target_hash=hash_payload({"target": "H1"}),
     )
@@ -97,6 +100,7 @@ def test_confirmation_event_identity_fields_are_immutable():
         "action": "action-b",
         "tool": "tool-b",
         "payload_hash": hash_payload({"x": 2}),
+        "target_ref": "resource-b",
         "target_version": "V2",
         "target_hash": hash_payload({"target": "H2"}),
     }
@@ -132,7 +136,7 @@ def test_action_tool_identity_is_checked_by_channel_but_lookup_is_tool_only():
 
 
 def test_payload_type_matrix_separates_hashing_wrapping_and_observability():
-    """Dict reaches tracing; Mapping and TracingRow do not reach the tool path."""
+    """No payload reaches a tool when trusted external approval is unavailable."""
     register_binding(ActionBinding("phase_c_dict", ("path",)))
     channel = ConfirmationChannel()
     registry = ToolRegistry()
@@ -152,13 +156,10 @@ def test_payload_type_matrix_separates_hashing_wrapping_and_observability():
     dict_result = boundary.execute(
         dict_event, "phase_c_dict", "dict-tool", "s1", dict_payload
     )
-    assert dict_result.executed is True
-    assert seen["type"] is TracingRow
-    assert any(
-        record.get("event") == "binding_drift"
-        and record.get("risk") == "HIGH"
-        for record in channel.audit_log()
-    )
+    assert dict_result.executed is False
+    assert dict_result.reason == "external_approval_unavailable"
+    assert seen == {}
+    assert not [record for record in channel.audit_log() if record.get("event") == "binding_drift"]
 
     mapping_payload = CustomMapping(dict_payload)
     traced_payload = TracingRow(dict_payload)
@@ -173,7 +174,7 @@ def test_payload_type_matrix_separates_hashing_wrapping_and_observability():
         "phase_c_mapping",
         "dict-tool",
         "s1",
-        payload_hash=hash_payload(dict_payload),
+        payload=dict_payload,
     )
     with pytest.raises(TypeError):
         boundary.execute(
@@ -183,12 +184,12 @@ def test_payload_type_matrix_separates_hashing_wrapping_and_observability():
             "s1",
             mapping_payload,
         )
-    assert seen["type"] is TracingRow
+    assert seen == {}
     # Classification: dict tracing is PROVEN; Mapping/TracingRow boundary path
     # is NOT ESTABLISHED / STRUCTURAL GAP in the current implementation.
 
 
-def test_audit_records_are_shallow_mutable_process_local_without_integrity_check():
+def test_audit_records_are_copy_isolated_process_local_and_integrity_checked():
     """Legacy evidence: the former shallow-mutability gap is now closed.
 
     The tamper-evidence behavior is covered by

@@ -1,4 +1,4 @@
-"""Phase B evidence tests: observe current boundary seams without fixing them."""
+"""Phase B regression evidence for scoped confirmation and fail-closed dispatch."""
 from __future__ import annotations
 
 import inspect
@@ -31,14 +31,15 @@ def _registry_with_recorder():
     return registry, calls
 
 
-def test_target_binding_is_proven_at_channel_but_not_boundary_api():
-    """Target checks work in the channel; Boundary has no current-target inputs."""
+def test_channel_target_binding_checks_scope_but_does_not_authorize_dispatch():
+    """Target checks require complete current state and do not authorize dispatch."""
     channel = ConfirmationChannel()
     event = channel.issue(
         action="delete_file",
         tool="filesystem",
         session_id="s1",
         payload={"path": "a.txt"},
+        target_ref="a.txt",
         target_version="v1",
         target_hash=hash_payload({"content": "initial"}),
     )
@@ -49,6 +50,7 @@ def test_target_binding_is_proven_at_channel_but_not_boundary_api():
         tool="filesystem",
         session_id="s1",
         payload={"path": "a.txt"},
+        current_target_ref="a.txt",
         current_target_version="v1",
         current_target_hash=hash_payload({"content": "initial"}),
     )
@@ -60,6 +62,7 @@ def test_target_binding_is_proven_at_channel_but_not_boundary_api():
         tool="filesystem",
         session_id="s1",
         payload={"path": "a.txt"},
+        current_target_ref="a.txt",
         current_target_version="v2",
         current_target_hash=hash_payload({"content": "changed"}),
     )
@@ -102,6 +105,7 @@ def test_confirmation_event_identity_fields_are_immutable():
         "tool-a",
         "s1",
         payload={"x": 1},
+        target_ref="resource-a",
         target_version="v1",
         target_hash=hash_payload({"target": "v1"}),
     )
@@ -110,6 +114,7 @@ def test_confirmation_event_identity_fields_are_immutable():
         "action": "action-b",
         "tool": "tool-b",
         "payload_hash": hash_payload({"x": 2}),
+        "target_ref": "resource-b",
         "target_version": "v2",
         "target_hash": hash_payload({"target": "v2"}),
     }
@@ -126,12 +131,14 @@ def test_tool_registry_dispatch_is_tool_keyed_while_confirmation_checks_action_a
 
     first = channel.issue("action-a", "tool-a", "s1", payload={"x": 1})
     first_result = boundary.execute(first, "action-a", "tool-a", "s1", {"x": 1})
-    assert first_result.executed is True
+    assert first_result.executed is False
+    assert first_result.reason == "external_approval_unavailable"
 
     second = channel.issue("action-b", "tool-a", "s1", payload={"x": 2})
     second_result = boundary.execute(second, "action-b", "tool-a", "s1", {"x": 2})
-    assert second_result.executed is True
-    assert len(calls) == 2
+    assert second_result.executed is False
+    assert second_result.reason == "external_approval_unavailable"
+    assert calls == []
 
     mismatched = channel.issue("action-a", "tool-a", "s1", payload={"x": 3})
     mismatch_result = boundary.execute(
@@ -181,7 +188,7 @@ def test_non_dict_mapping_bypasses_tracing_wrapper_in_boundary():
         "mapping-action",
         "mapping-tool",
         "s1",
-        payload_hash=hash_payload(dict(mapping)),
+        payload=dict(mapping),
     )
 
     with pytest.raises(TypeError):
@@ -190,7 +197,7 @@ def test_non_dict_mapping_bypasses_tracing_wrapper_in_boundary():
     assert isinstance(mapping, UserDict)
 
 
-def test_channel_audit_records_are_mutable_and_process_local():
+def test_channel_audit_records_are_copy_isolated_and_process_local():
     """Legacy evidence: the former shallow-mutability gap is now closed.
 
     The tamper-evidence behavior is covered by

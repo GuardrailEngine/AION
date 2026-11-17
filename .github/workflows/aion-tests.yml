@@ -32,9 +32,10 @@ jobs:
         run: |
           coverage run -m pytest -q
           coverage report --include="aion/*" --fail-under=90
+          coverage report --include="aion_core.py,aion_core (1).py"
 
       - name: Lint with ruff
         run: ruff check aion aion_core.py tests
 
       - name: Security scan
-        run: bandit -r aion/ tests/ -ll
+        run: bandit -r aion/ tests/ aion_core.py "aion_core (1).py" -ll

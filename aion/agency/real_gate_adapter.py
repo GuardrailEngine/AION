@@ -1,52 +1,42 @@
-"""Adapter wiring AgencyGate from aion_core (1).py into AgencyGateway.
+"""Adapter wiring the real Core AgencyGate into AgencyGateway.
 
-The real AgencyGate exposes .decide(req, reasoning, critique, risk,
-constitution). AgencyGateway expects a callable returning
-(is_action: bool, reason: str). This adapter bridges them.
-
-The adapter does not fabricate reasoning, critique, risk, constitution,
-or request objects. The caller must supply the actual Core-owned values.
+The adapter passes Core-owned objects through unchanged. It does not fabricate
+requests or claim that a channel-issued event is external approval.
 """
 from __future__ import annotations
 
-import importlib.util
-import sys
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
-_CORE_PATH = Path(__file__).resolve().parents[2] / "aion_core (1).py"
-REQUIRED_INPUTS = ("req", "reasoning", "critique", "risk", "constitution")
+import aion_core
 
 
 def _load_core():
-    module_name = "aion_core_available_snapshot"
-    existing = sys.modules.get(module_name)
-    if existing is not None:
-        return existing
-    if not _CORE_PATH.is_file():
-        raise RuntimeError(f"aion_core snapshot not found: {_CORE_PATH}")
-    spec = importlib.util.spec_from_file_location(module_name, _CORE_PATH)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"could not load aion_core snapshot: {_CORE_PATH}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
+    """Return the repository's canonical import-compatible Core module."""
+    return aion_core
 
 
 def make_evaluator() -> Callable[[dict], tuple[bool, str]]:
-    """Return a callable for AgencyGateway backed by the real AgencyGate."""
+    """Return a callable backed by AgencyGate and canonical Core types."""
     core = _load_core()
     gate = core.AgencyGate()
+    expected_types = {
+        "req": core.Request,
+        "reasoning": core.Reasoning,
+        "critique": core.Critique,
+        "risk": core.Risk,
+        "constitution": core.ConstitutionResult,
+    }
 
     def evaluator(request: dict) -> tuple[bool, str]:
         if not isinstance(request, dict):
             return False, "adapter_invalid_request"
 
-        for name in REQUIRED_INPUTS:
+        for name, expected_type in expected_types.items():
             if name not in request or request[name] is None:
                 return False, f"adapter_missing_input:{name}"
+            if not isinstance(request[name], expected_type):
+                return False, f"adapter_invalid_input:{name}"
 
         decision = gate.decide(
             req=request["req"],
@@ -64,33 +54,48 @@ def make_evaluator() -> Callable[[dict], tuple[bool, str]]:
 
 
 def map_request_for_real_gate(
+    *,
     action: str,
     tool: str,
     session_id: str,
     payload: Any,
+    req: Any,
     reasoning: Any,
     critique: Any,
     risk: Any,
     constitution: Any,
+    target_ref: Any | None = None,
     target_version: str | None = None,
+    target_hash: str | None = None,
 ) -> dict:
-    """Build gateway fields plus caller-supplied real-gate inputs.
+    """Build gateway fields while preserving the actual Core Request object.
 
-    The ``req`` value is intentionally not fabricated or converted. It must
-    be a real Request object accepted by the available AgencyGate snapshot.
+    ``req`` must be an instance of the canonical ``aion_core.Request`` type.
+    No dictionary-shaped substitute is created.
     """
+    core = _load_core()
+    if not isinstance(req, core.Request):
+        raise TypeError("req must be an aion_core.Request instance")
+
+    expected_types = (
+        ("reasoning", reasoning, core.Reasoning),
+        ("critique", critique, core.Critique),
+        ("risk", risk, core.Risk),
+        ("constitution", constitution, core.ConstitutionResult),
+    )
+    for name, value, expected_type in expected_types:
+        if not isinstance(value, expected_type):
+            raise TypeError(f"{name} must be an aion_core.{expected_type.__name__} instance")
+
     return {
         "action": action,
         "tool": tool,
         "session_id": session_id,
         "payload": payload,
+        "target_ref": target_ref,
         "target_version": target_version,
-        "req": {
-            "action": action,
-            "tool": tool,
-            "session_id": session_id,
-            "payload": payload,
-        },
+        "target_hash": target_hash,
+        "req": req,
         "reasoning": reasoning,
         "critique": critique,
         "risk": risk,

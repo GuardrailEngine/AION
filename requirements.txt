@@ -1,4 +1,4 @@
-pytest
-coverage
-bandit
-ruff
+pytest==9.2.0
+coverage==7.16.2
+bandit==1.9.4
+ruff==0.17.5

@@ -44,12 +44,17 @@ boundaries:
 5.  **Agency → execution eligibility**
 6.  **LLM output → schema boundary**
 7.  **Clarification → refusal**
-8.  **Confirmation → execution**
+8.  **Confirmation event provenance and one-shot channel consumption**;
+    a channel-issued event is not proof of external approval, and the
+    execution boundary refuses dispatch when no trusted approval verifier
+    exists.
 9.  **Collusion → boundaries**
 10. **Longitudinal state → boundaries**
-11. **Target binding at execution → drift refusal** (with documented
-    TOCTOU boundary; see PHASE_E2R_TARGET_AUTHORITY_DESIGN_2026-09-21.md
-    and tests/test_toctou_known_limitation.py)
+11. **Target identity/version/hash validation → drift refusal**; the
+    execution boundary refuses target-bound dispatch because no atomic
+    compare-and-execute handler exists (see
+    PHASE_E2R_TARGET_AUTHORITY_DESIGN_2026-09-21.md and
+    tests/test_toctou_known_limitation.py).
 
 These are evidence-backed within the tested Reference Implementation
 scope. They are not claims of general security or exhaustive coverage.
@@ -67,6 +72,12 @@ sufficiently exercised to establish a runtime proof:
     modification classes (truncation, reordering, selective deletion).
 -   all syntactically valid but semantically inconsistent combinations
     of execution events and payloads.
+-   any trusted path that proves external user approval and binds that
+    proof to request, action, tool, session, payload, and target; no such
+    verifier exists in this repository, so the execution boundary fails
+    closed.
+-   atomic compare-and-execute for filesystem or other side-effecting
+    tools; snapshots do not close TOCTOU windows for arbitrary handlers.
 
 These items remain outside the proven boundary set.
 
@@ -109,6 +120,9 @@ completeness.
 
 The proof phase produced a **136/136 regression baseline** (as of
 2026-09-22; previous baseline: 89/89 as of 2026-09-15).
+
+That number is a historical baseline for the earlier reference state. It
+does not describe the test count or implementation status of later branches.
 
 This establishes the recorded result for the tested Reference
 Implementation and its defined test suite.
@@ -159,5 +173,5 @@ This document is part of the AION Reference Implementation
 documentation.
 
 **Proof Phase:** v2.1 → v0.4\
-**Status:** Proof-phase limitations\
-**Last updated:** 2026-09-22
+**Status:** Proof-phase limitations, updated for fail-closed execution\
+**Last updated:** 2026-11-17

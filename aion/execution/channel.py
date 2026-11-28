@@ -58,6 +58,7 @@ class ConfirmationEvent:
     target_version: str | None = None
     target_hash: str | None = None
     target_ref: str | None = None
+    expected_generation: int | None = None
     used: bool = False
 
     def is_valid_for(
@@ -71,6 +72,7 @@ class ConfirmationEvent:
         current_target_hash: str | None = None,
         request_id: str | None = None,
         current_target_ref: str | None = None,
+        current_expected_generation: int | None = None,
     ) -> tuple[bool, str]:
         if self.used:
             return False, "already_used"
@@ -94,7 +96,9 @@ class ConfirmationEvent:
             self.target_version,
             self.target_hash,
         )
-        target_is_bound = any(value is not None for value in target_values)
+        target_is_bound = any(value is not None for value in target_values) or (
+            self.expected_generation is not None
+        )
         if target_is_bound:
             if not all(
                 isinstance(value, str) and value.strip()
@@ -113,12 +117,26 @@ class ConfirmationEvent:
                 return False, "target_drift"
             if current_target_hash != self.target_hash:
                 return False, "target_hash_mismatch"
+            if self.expected_generation is not None:
+                if (
+                    not isinstance(self.expected_generation, int)
+                    or isinstance(self.expected_generation, bool)
+                    or self.expected_generation <= 0
+                ):
+                    return False, "target_generation_invalid"
+                if current_expected_generation is None:
+                    return False, "target_state_unavailable"
+                if current_expected_generation != self.expected_generation:
+                    return False, "target_generation_mismatch"
+            elif current_expected_generation is not None:
+                return False, "target_binding_mismatch"
         elif any(
             value is not None
             for value in (
                 current_target_ref,
                 current_target_version,
                 current_target_hash,
+                current_expected_generation,
             )
         ):
             return False, "target_binding_mismatch"
@@ -182,6 +200,7 @@ class ConfirmationChannel:
         target_version: str | None = None,
         target_hash: str | None = None,
         target_ref: str | None = None,
+        expected_generation: int | None = None,
     ) -> ConfirmationEvent:
         if payload_hash is None:
             payload_hash = hash_payload(payload)
@@ -198,6 +217,15 @@ class ConfirmationChannel:
             raise ValueError(
                 "target_ref, target_version, and target_hash must be bound together"
             )
+        if expected_generation is not None and (
+            not isinstance(expected_generation, int)
+            or isinstance(expected_generation, bool)
+            or expected_generation <= 0
+            or not all(value is not None for value in target_values)
+        ):
+            raise ValueError(
+                "expected_generation must be positive and accompany a target binding"
+            )
 
         now = self._now()
         event = ConfirmationEvent(
@@ -212,6 +240,7 @@ class ConfirmationChannel:
             target_version=target_version,
             target_hash=target_hash,
             target_ref=target_ref,
+            expected_generation=expected_generation,
         )
         with self._consume_lock:
             self._events[event.request_id] = event
@@ -225,6 +254,7 @@ class ConfirmationChannel:
                 "target_ref_hash": _hash_target_ref(target_ref),
                 "target_version": target_version,
                 "target_hash": target_hash,
+                "expected_generation": expected_generation,
                 "timestamp": now.isoformat(),
             })
         return event
@@ -241,6 +271,7 @@ class ConfirmationChannel:
         current_target_hash: str | None,
         request_id: str | None,
         current_target_ref: str | None,
+        current_expected_generation: int | None,
     ) -> tuple[bool, str]:
         if not isinstance(event, ConfirmationEvent):
             return False, "unissued_confirmation"
@@ -262,6 +293,7 @@ class ConfirmationChannel:
             current_target_hash=current_target_hash,
             request_id=request_id,
             current_target_ref=current_target_ref,
+            current_expected_generation=current_expected_generation,
         )
 
     def verify(
@@ -276,6 +308,7 @@ class ConfirmationChannel:
         current_target_hash: str | None = None,
         request_id: str | None = None,
         current_target_ref: str | None = None,
+        current_expected_generation: int | None = None,
     ) -> tuple[bool, str]:
         with self._consume_lock:
             valid, reason = self._verify_unlocked(
@@ -289,6 +322,7 @@ class ConfirmationChannel:
                 current_target_hash=current_target_hash,
                 request_id=request_id,
                 current_target_ref=current_target_ref,
+                current_expected_generation=current_expected_generation,
             )
             self._append_audit({
                 "event": "verified",
@@ -317,6 +351,7 @@ class ConfirmationChannel:
         current_target_hash: str | None = None,
         request_id: str | None = None,
         current_target_ref: str | None = None,
+        current_expected_generation: int | None = None,
     ) -> tuple[bool, str]:
         """Verify provenance and scope, then consume a channel event once.
 
@@ -335,6 +370,7 @@ class ConfirmationChannel:
                 current_target_hash=current_target_hash,
                 request_id=request_id,
                 current_target_ref=current_target_ref,
+                current_expected_generation=current_expected_generation,
             )
             self._append_audit({
                 "event": "verified",

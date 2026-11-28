@@ -53,6 +53,9 @@ class AgencyGateway:
 
     @staticmethod
     def _target_identity(target_ref: Any) -> str | None:
+        identity = getattr(target_ref, "identity", None)
+        if isinstance(identity, str) and identity:
+            return identity
         identity = getattr(target_ref, "path", None)
         if isinstance(identity, str) and identity:
             return identity
@@ -100,6 +103,7 @@ class AgencyGateway:
         target_identity = None
         target_version = None
         target_hash = None
+        expected_generation = None
 
         if target_claimed:
             if requested_target_ref is None:
@@ -129,6 +133,13 @@ class AgencyGateway:
                 return self._refuse_target("target_ref_mismatch")
             target_version = getattr(snapshot, "version", None)
             target_hash = getattr(snapshot, "content_hash", None)
+            expected_generation = getattr(snapshot, "generation", None)
+            if expected_generation is not None and (
+                not isinstance(expected_generation, int)
+                or isinstance(expected_generation, bool)
+                or expected_generation <= 0
+            ):
+                return self._refuse_target("target_generation_invalid")
             if not all(
                 isinstance(value, str) and value.strip()
                 for value in (target_version, target_hash)
@@ -143,6 +154,7 @@ class AgencyGateway:
             target_ref=target_identity,
             target_version=target_version,
             target_hash=target_hash,
+            expected_generation=expected_generation,
         )
 
         return GateDecision(
